@@ -1,0 +1,13 @@
+aiofiles==0.4.0
+aiohttp==3.4.4
+async-timeout==3.0.0
+attrs==18.2.0
+chardet==3.0.4
+cssselect==1.0.3
+gain==0.1.4
+idna==2.7
+lxml==4.2.5
+multidict==4.4.2
+pyquery==1.4.0
+uvloop==0.11.2
+yarl==1.2.6
