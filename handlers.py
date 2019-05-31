@@ -11,7 +11,7 @@ from settings import start_url as domain
 import json
 import itertools
 
-project_directory = '/Users/slaza/PycharmProjects/asynchronous_site_parser/'
+project_directory = os.getcwd() + '/'
 class HtmlHandler:
     def __init__(self, response):
         self.inbound = set()
@@ -29,9 +29,6 @@ class HtmlHandler:
         self.get_links_from_img()
 
         self.get_links_from_a_and_link()
-
-        self.normalize_inbound_links()
-
         return self.inbound
 
     def get_scripts_from_html(self) -> str:
@@ -104,8 +101,6 @@ class HtmlHandler:
         for link in self.inbound:
             if link.startswith(domain):
                 temp_set.append(link)
-            elif link.startswith('/'):
-                temp_set.append(domain[:-1] + link)
             else:
                 temp_set.append(domain + link)
 
@@ -113,53 +108,33 @@ class HtmlHandler:
         return None
 
     @staticmethod
-    async def write_binary(response, file_type=''):
-        # sub_directory = []
-        # name = []
-        # path = response.url.raw_path
-        # types = {'text/html': ('index.html', '.html'),
-        #          'application/json': ('index.json', '.json'),
-        #          'text/xml': ('index.xml', '.xml')}
-        # if response.url.query_string:
-        #     directory_appendix = response.url.query_string.split('&')
-        #     for item in directory_appendix:
-        #         sub, sub_name = item.split('=')
-        #         sub_directory.append(sub)
-        #         name.append(quote(sub_name, safe=''))
-        #     path = path + '/' + '/'.join(sub_directory) + '/' + '='.join(name)
-        # else:
-        #     if '.' not in path and not path.endswith('/'):
-        #         path = path + '/'
-        #     path = response.url.raw_host + path
-        #     # removing filename
-        #     directory = '/'.join(path.split('/')[:-1])
-        #     if file_type and '.' not in response.url.name:
-        #         path = path + types[file_type]
-        #         print('changed path from ', response.url.raw_host + path, ' to ', path)
-        directory = "FAKE VARIABLE"
-        path = directory
-        path = response_url.raw_host + path
-        if not os.path.exists(project_directory + directory):
-            os.makedirs(directory)
+    async def write_binary(response):
+        directory, file_name = HtmlHandler.convert_url_to_static(response.url, response.content_type)
+        path = response.url.raw_host + directory + '/'
+        if not os.path.exists(project_directory + path):
+            os.makedirs(project_directory + path)
         try:
-            async with aiofiles.open(path, mode='wb') as f:
+            async with aiofiles.open(project_directory + path + file_name, mode='wb') as f:
                 await f.write(await response.read())
                 await f.close()
         except OSError:
             print('OSError')
-        return path
+        return project_directory + path + file_name
 
     @staticmethod
     def convert_url_to_static(response_url, file_type: str) -> [str, str]:
-        sub_directory = []
-        name = []
         path = response_url.raw_path
         types = {'text/html': ('index.html', '.html'),
                  'application/json': ('index.json', '.json'),
-                 'text/xml': ('index.xml', '.xml')}
+                 'text/xml': ('index.xml', '.xml'),
+                 'application/rss+xml': ('index.xml', '.xml'),
+                 }
         # checking if url has parameters,
         if response_url.query_string:
             file_name = response_url.raw_name.replace('.', '_') + '?' + response_url.query_string + types[file_type][1]
+            file_name = quote(file_name, safe='')
+            print('changed path from ', response_url, ' to ', response_url.scheme +
+                  '://' + response_url.raw_host + path + file_name)
         else:
             # if url has no slash ending and has no extension
             if not path.endswith('/') and '.' not in path:
@@ -167,14 +142,13 @@ class HtmlHandler:
             # handling file_name
             if file_type and '.' not in response_url.name:
                 file_name = types[file_type][0]
-                print('changed path from ', response_url.raw_host + path, ' to ', path + file_name)
+                print('changed path from ', response_url, ' to ', response_url.scheme +
+                      '://' + response_url.raw_host + path + file_name)
             else:
                 file_name = path.split('/')[-1]
             # handling directory
         directory = '/'.join(path.split('/')[:-1])
         return directory, file_name
-
-
 
     def get_links_from_xml(self):
         parsed_links = set()
