@@ -1,22 +1,21 @@
 import os
-
 import re
 import tinycss2
-import time
 import aiofiles
-from urllib.parse import urljoin, unquote, quote
-import html
-from lxml import html as lhtml
-from settings import start_url as domain
 import json
 import itertools
+from urllib.parse import quote, urljoin
+from lxml import html as lhtml
+from settings import start_url as domain, project_directory
+from pprint import pprint
 
-project_directory = os.getcwd() + '/'
+
 class HtmlHandler:
-    def __init__(self, response):
+    def __init__(self, response, response_url):
         self.inbound = set()
         self.outbound = set()
         self.response_text = response
+        self.response_url = response_url
         self.parsed_response = lhtml.fromstring(self.response_text.encode('utf8'))
 
     def html_inbound_links_parser(self) -> set:
@@ -53,9 +52,11 @@ class HtmlHandler:
         parsed_links = []
         for item in tinycss2.parse_stylesheet(styles):
             if item.type in ['qualified-rule', 'at-rule']:
-                for css_item in item.prelude + item.content:
-                    if css_item.type == 'url':
+                css_items = [] if not item.prelude else item.prelude + [] if not item.content else item.content
+                for css_item in css_items:
+                    if css_item.type == 'url' and '<' not in css_item.value:
                         parsed_links.append(css_item.value)
+        pprint(parsed_links)
         self.separate_links_by_type(parsed_links)
         self.normalize_inbound_links()
         return None
@@ -97,14 +98,25 @@ class HtmlHandler:
         return None
 
     def normalize_inbound_links(self):
-        temp_set = []
+        temp_set = set()
         for link in self.inbound:
+            if '#' in link:
+                if '?#' in link:
+                    link = ''.join(link.split('?#')[:-1])
+                else:
+                    link = ''.join(link.split('#')[:-1])
             if link.startswith(domain):
-                temp_set.append(link)
+                temp_set.add(link)
+            elif link.startswith('.'):
+                if link.startswith('./'):
+                    temp_set.add(urljoin(domain, self.response_url.raw_path + '/.' + link))
+                else:
+                    temp_set.add(urljoin(domain, self.response_url.raw_path + '/' + link))
+            elif not link.startswith('/'):
+                temp_set.add(domain + '/' + link)
             else:
-                temp_set.append(domain + link)
-
-        self.inbound = set([item for item in temp_set if '#' not in item])
+                temp_set.add(domain + link)
+        self.inbound = temp_set
         return None
 
     @staticmethod
@@ -128,9 +140,10 @@ class HtmlHandler:
                  'application/json': ('index.json', '.json'),
                  'text/xml': ('index.xml', '.xml'),
                  'application/rss+xml': ('index.xml', '.xml'),
+                 'text/css': ('index.css', '.css'),
                  }
         # checking if url has parameters,
-        if response_url.query_string:
+        if response_url.query_string and file_type != 'text/css':
             file_name = response_url.raw_name.replace('.', '_') + '?' + response_url.query_string + types[file_type][1]
             file_name = quote(file_name, safe='')
             print('changed path from ', response_url, ' to ', response_url.scheme +
@@ -176,15 +189,3 @@ class HtmlHandler:
             for _, value in child.items():
                 self.child_parser(value)
         return None
-
-
-async def worker(url):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            await HtmlHandler.write_binary(response, 'index.html')
-
-
-if __name__ == '__main__':
-    import asyncio
-    import aiohttp
-    asyncio.run(worker('http://lotoflotto.com/'))

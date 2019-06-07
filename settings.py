@@ -1,6 +1,8 @@
+import os
 auth_login = 'ksnsuomi'
 auth_password = 'ssksnnnmi'
 start_url = 'http://xn--90abjzldcl.xn--p1ai'
+project_directory = os.getcwd() + '/'
 
 
 USELESS_APPLICATIONS_TYPES = """application/epub+zip

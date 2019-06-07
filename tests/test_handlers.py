@@ -1,9 +1,9 @@
 import pytest
-from pprint import pprint
 from handlers import HtmlHandler
 import asyncio
 import os
 import aiohttp
+from pprint import pprint
 
 HTML_INBOUND = {'http://xn--90abjzldcl.xn--p1ai/wp-content/plugins/wp-pagenavi/pagenavi-css.css?ver=2.70',
                 'http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/img/powerball-logo.png',
@@ -133,7 +133,7 @@ def event_loop():
 async def worker(url):
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
-            return await response.text()
+            return await response.text(), response.url
 
 
 async def another_worker(url):
@@ -141,10 +141,11 @@ async def another_worker(url):
         async with session.get(url) as response:
             return response.url, response.content_type
 
+
 def test_html_file_parsing():
     url = 'http://xn--90abjzldcl.xn--p1ai/'
     response = asyncio.run(worker(url))
-    html_class = HtmlHandler(response)
+    html_class = HtmlHandler(*response)
     test_inbound = html_class.html_inbound_links_parser()
     test_outbound = html_class.outbound
 
@@ -155,7 +156,7 @@ def test_html_file_parsing():
 def test_js_file_parsing():
     url = 'http://lotoflotto.com/sites/default/files/js/js_23S4ZJ2YFIznAjgWDjd7jegTMfWRBdq-fZxZgeORSTY.js'
     response = asyncio.run(worker(url))
-    js_class = HtmlHandler(response)
+    js_class = HtmlHandler(*response)
     js_class.get_links_from_scripts(js_class.response_text)
 
     assert js_class.outbound == js_outbound
@@ -165,11 +166,40 @@ def test_js_file_parsing():
 def test_css_file_parsing():
     url = 'http://lotoflotto.com/sites/default/files/css/css_xE-rWrJf-fncB6ztZfd2huxqgxu4WO-qwma6Xer30m4.css'
     response = asyncio.run(worker(url))
-    css_class = HtmlHandler(response)
+    css_class = HtmlHandler(*response)
     css_class.get_links_from_css(css_class.response_text)
 
     assert css_class.outbound == set()
     assert css_class.inbound == css_inbound
+
+
+@pytest.mark.parametrize('url, inbound, outbound', [
+    ('http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/css/my.css', 12, 2)
+])
+def test_css2_file_parsing(url, inbound, outbound):
+    response = asyncio.run(worker(url))
+    css_class = HtmlHandler(*response)
+    css_class.get_links_from_css(css_class.response_text)
+
+    assert len(css_class.inbound) == inbound
+    assert len(css_class.outbound) == outbound
+
+
+def test_css3_file_parsing_dots():
+    response = asyncio.run(worker('http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/slick/slick-theme.css'))
+    css_class = HtmlHandler(*response)
+    css_class.get_links_from_css(css_class.response_text)
+
+    assert len(css_class.inbound) == 5
+
+@pytest.mark.foo
+def test_css3_file_parsing_shitty_stuff():
+    response = asyncio.run(worker('http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/css/powerball.css'))
+    css_class = HtmlHandler(*response)
+    css_class.get_links_from_css(css_class.response_text)
+
+    assert len(css_class.inbound) == 4
+
 
 
 @pytest.mark.parametrize('url', [
@@ -198,7 +228,7 @@ def test_file_write(url):
 ])
 def test_xml_parser(url, number):
     response = asyncio.run(worker(url))
-    xml_class = HtmlHandler(response)
+    xml_class = HtmlHandler(*response)
     xml_class.get_links_from_xml()
 
     assert xml_class.inbound == XML_INBOUND[number]
@@ -211,7 +241,7 @@ def test_xml_parser(url, number):
 ])
 def test_json_parser(url, number):
     response = asyncio.run(worker(url))
-    json_class = HtmlHandler(response)
+    json_class = HtmlHandler(*response)
     json_class.get_links_from_json()
 
     assert json_class.inbound == JSON_INBOUND[number]
@@ -237,6 +267,15 @@ def test_check_correct_path(url, file_type, path):
     directory, file_name = HtmlHandler.convert_url_to_static(response_url, response_type)
 
     assert [directory, file_name] == path
+
+
+def test_check_correct_path_for_css_file_with_parameters():
+    url = 'http://xn--90abjzldcl.xn--p1ai/wp-content/plugins/waiting/css/style.css?v=0.4.7'
+    response_url, response_type = asyncio.run(another_worker(url))
+    directory, file_name = HtmlHandler.convert_url_to_static(response_url, response_type)
+
+    assert [directory, file_name] == ['/wp-content/plugins/waiting/css', 'style.css']
+
 
 
 

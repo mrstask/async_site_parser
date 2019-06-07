@@ -13,46 +13,57 @@ bad_urls = set()
 auth = aiohttp.BasicAuth(login=auth_login, password=auth_password)
 
 
+async def add_links_and_save_file(obj, response):
+    for url in obj.inbound:
+        if url not in parsed_urls and url not in queued_urls:
+            queued_urls.add(url)
+            await qu.put(url)
+    await HtmlHandler.write_binary(response)
+
+
 async def content_router(response):
     if response.content_type == 'text/html':
-        response_text = await response.text()
-        html_class = HtmlHandler(response_text)
-        for url in html_class.html_inbound_links_parser():
-            if url not in parsed_urls and url not in queued_urls:
-                queued_urls.add(url)
-                await qu.put(url)
-        await HtmlHandler.write_binary(response, response.content_type)
+        html_obj = HtmlHandler(await response.text(), response.url)
+        html_obj.html_inbound_links_parser()
+        await add_links_and_save_file(html_obj, response)
         print('parsed_urls', len(parsed_urls))
         print('queue size', qu.qsize())
 
-    if response.content_type in TO_SAVE_TYPES:
-        await HtmlHandler.write_binary(response, content_type)
-
     if response.content_type == 'text/css':
-        css_class = HtmlHandler(await response.text())
-        for url in css_class.get_links_from_css(css_class.response_text):
-            if url not in parsed_urls and url not in queued_urls:
-                queued_urls.add(url)
-                await qu.put(url)
-        await HtmlHandler.write_binary(response, content_type)
+        css_class = HtmlHandler(await response.text(), response.url)
+        css_class.get_links_from_css(css_class.response_text)
+        await add_links_and_save_file(css_class, response)
 
     if response.content_type == 'text/javascript':
-        js_class = HtmlHandler(await response.text())
-        for url in js_class.get_links_from_scripts(js_class.response_text):
-            if url not in parsed_urls and url not in queued_urls:
-                queued_urls.add(url)
-                await qu.put(url)
-        await js_class.write_binary(response, content_type)
+        js_class = HtmlHandler(await response.text(), response.url)
+        js_class.get_links_from_scripts(js_class.response_text)
+        await add_links_and_save_file(js_class, response)
+
     if response.content_type == 'text/xml':
-        print('xml')
-        # todo process xml
-        pass
+        xml_class = HtmlHandler(await response.text(), response.url)
+        xml_class.get_links_from_xml()
+        await add_links_and_save_file(xml_class, response)
+
     if response.content_type == 'application/json':
-        # todo process json
-        print('json')
-        pass
+        json_class = HtmlHandler(await response.text(), response.url)
+        json_class.get_links_from_json()
+        await add_links_and_save_file(json_class, response)
+
+    if response.content_type in TO_SAVE_TYPES:
+        await HtmlHandler.write_binary(response)
+
     if response.content_type in USELESS_TYPES:
         print('useless_types')
+
+
+async def main():
+    await qu.put(start_url)
+    tasks = []
+    for _ in range(1):
+        task = asyncio.Task(worker(qu))
+        tasks.append(task)
+
+    await asyncio.gather(*tasks)
 
 
 async def worker(queue):
@@ -64,22 +75,12 @@ async def worker(queue):
                 async with session.get(url) as response:
                     if response.status == 200:
                         parsed_urls.add(url)
-                        await content_router(response, response.content_type)
+                        await content_router(response)
                     if response.status in (404, 500):
                         print('bad_url ', response.url, ' ', response.status)
                         bad_urls.add(url)
             except Exception as e:
                 print(type(e), e)
-
-
-async def main():
-    await qu.put(start_url)
-    tasks = []
-    for _ in range(20):
-        task = asyncio.Task(worker(qu))
-        tasks.append(task)
-
-    await asyncio.gather(*tasks)
 
 
 if __name__ =='__main__':
