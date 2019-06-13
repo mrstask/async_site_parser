@@ -11,6 +11,12 @@ queued_urls = set()
 bad_urls = set()
 
 auth = aiohttp.BasicAuth(login=auth_login, password=auth_password)
+type_methods = {'text/html': 'html_inbound_links_parser',  # without parameters
+                'text/css': 'get_links_from_css',
+                'text/javascript': 'get_links_from_scripts',
+                'text/xml': 'get_links_from_xml',  # without parameters
+                'application/json': 'get_links_from_json' # without parameters
+                }
 
 
 async def add_links_and_save_file(obj, response):
@@ -18,36 +24,36 @@ async def add_links_and_save_file(obj, response):
         if url not in parsed_urls and url not in queued_urls:
             queued_urls.add(url)
             await qu.put(url)
-    await HtmlHandler.write_binary(response)
+    await HtmlHandler.write_binary(response)l
+
+
+async def get_inbound_links_and_save_file(response, response_text, response_url, content_type):
+    type_object = HtmlHandler(response_text, response_url)
+
+    if content_type in ['text/css', 'text/javascript']:
+        getattr(type_object, type_methods[content_type])(type_object.response_text)
+    else:
+        getattr(type_object, type_methods[content_type])()
+    print('links')
+    pprint(type_object.inbound.difference(queued_urls))
+    await add_links_and_save_file(type_object, response)
 
 
 async def content_router(response):
     if response.content_type == 'text/html':
-        html_obj = HtmlHandler(await response.text(), response.url)
-        html_obj.html_inbound_links_parser()
-        await add_links_and_save_file(html_obj, response)
-        print('parsed_urls', len(parsed_urls))
-        print('queue size', qu.qsize())
+        await get_inbound_links_and_save_file(response, await response.text(), response.url, response.content_type)
 
     if response.content_type == 'text/css':
-        css_class = HtmlHandler(await response.text(), response.url)
-        css_class.get_links_from_css(css_class.response_text)
-        await add_links_and_save_file(css_class, response)
+        await get_inbound_links_and_save_file(response, await response.text(), response.url, response.content_type)
 
     if response.content_type == 'text/javascript':
-        js_class = HtmlHandler(await response.text(), response.url)
-        js_class.get_links_from_scripts(js_class.response_text)
-        await add_links_and_save_file(js_class, response)
+        await get_inbound_links_and_save_file(response, await response.text(), response.url, response.content_type)
 
     if response.content_type == 'text/xml':
-        xml_class = HtmlHandler(await response.text(), response.url)
-        xml_class.get_links_from_xml()
-        await add_links_and_save_file(xml_class, response)
+        await get_inbound_links_and_save_file(response, await response.text(), response.url, response.content_type)
 
     if response.content_type == 'application/json':
-        json_class = HtmlHandler(await response.text(), response.url)
-        json_class.get_links_from_json()
-        await add_links_and_save_file(json_class, response)
+        await get_inbound_links_and_save_file(response, await response.text(), response.url, response.content_type)
 
     if response.content_type in TO_SAVE_TYPES:
         await HtmlHandler.write_binary(response)
@@ -75,6 +81,7 @@ async def worker(queue):
                 async with session.get(url) as response:
                     if response.status == 200:
                         parsed_urls.add(url)
+                        queued_urls.add(url)
                         await content_router(response)
                     if response.status in (404, 500):
                         print('bad_url ', response.url, ' ', response.status)
@@ -83,7 +90,7 @@ async def worker(queue):
                 print(type(e), e)
 
 
-if __name__ =='__main__':
+if __name__ == '__main__':
     asyncio.run(main())
     print(len(parsed_urls))
     pprint(parsed_urls)

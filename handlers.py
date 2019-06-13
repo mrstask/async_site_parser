@@ -4,6 +4,7 @@ import tinycss2
 import aiofiles
 import json
 import itertools
+import html
 from urllib.parse import quote, urljoin
 from lxml import html as lhtml
 from settings import start_url as domain, project_directory
@@ -12,6 +13,7 @@ from pprint import pprint
 
 class HtmlHandler:
     def __init__(self, response, response_url):
+        self.file_for_htaccess = []
         self.inbound = set()
         self.outbound = set()
         self.response_text = response
@@ -42,6 +44,7 @@ class HtmlHandler:
         try:
             pattern = re.compile(r'[\'|\"](((http(s)*:)|(//))([\w\d\.\-\&\?\/\=])+)[\'|\"]')
             parsed_links = [str(groups[0]) for groups in re.findall(pattern, script_text)]
+            pprint(parsed_links)
             self.separate_links_by_type(parsed_links)
             self.normalize_inbound_links()
             return None
@@ -108,10 +111,7 @@ class HtmlHandler:
             if link.startswith(domain):
                 temp_set.add(link)
             elif link.startswith('.'):
-                if link.startswith('./'):
-                    temp_set.add(urljoin(domain, self.response_url.raw_path + '/.' + link))
-                else:
-                    temp_set.add(urljoin(domain, self.response_url.raw_path + '/' + link))
+                temp_set.add(urljoin(domain + self.response_url.raw_path,  link))
             elif not link.startswith('/'):
                 temp_set.add(domain + '/' + link)
             else:
@@ -133,9 +133,8 @@ class HtmlHandler:
             print('OSError')
         return project_directory + path + file_name
 
-    @staticmethod
-    def convert_url_to_static(response_url, file_type: str) -> [str, str]:
-        path = response_url.raw_path
+    def convert_url_to_static(self, file_type: str) -> [str, str]:
+        path = self.response_url.raw_path
         types = {'text/html': ('index.html', '.html'),
                  'application/json': ('index.json', '.json'),
                  'text/xml': ('index.xml', '.xml'),
@@ -143,20 +142,25 @@ class HtmlHandler:
                  'text/css': ('index.css', '.css'),
                  }
         # checking if url has parameters,
-        if response_url.query_string and file_type != 'text/css':
-            file_name = response_url.raw_name.replace('.', '_') + '?' + response_url.query_string + types[file_type][1]
+        if self.response_url.query_string and file_type != 'text/css':
+            file_name = self.response_url.raw_name.replace('.', '_') + '?' + self.response_url.query_string + \
+                        types[file_type][1]
             file_name = quote(file_name, safe='')
-            print('changed path from ', response_url, ' to ', response_url.scheme +
-                  '://' + response_url.raw_host + path + file_name)
+            print('changed path from ', self.response_url, ' to ', self.response_url.scheme +
+                  '://' + self.response_url.raw_host + path + file_name)
+            self.file_for_htaccess.append(self.response_url.scheme + '://' + self.response_url.raw_host + path +
+                                          file_name)
         else:
             # if url has no slash ending and has no extension
             if not path.endswith('/') and '.' not in path:
                 path = path + '/'
             # handling file_name
-            if file_type and '.' not in response_url.name:
+            if file_type and '.' not in self.response_url.name:
                 file_name = types[file_type][0]
-                print('changed path from ', response_url, ' to ', response_url.scheme +
-                      '://' + response_url.raw_host + path + file_name)
+                print('changed path from ', self.response_url, ' to ', self.response_url.scheme +
+                      '://' + self.response_url.raw_host + path + file_name)
+                self.file_for_htaccess.append(self.response_url.scheme + '://' + self.response_url.raw_host + path +
+                                              file_name)
             else:
                 file_name = path.split('/')[-1]
             # handling directory
@@ -166,15 +170,23 @@ class HtmlHandler:
     def get_links_from_xml(self):
         parsed_links = set()
         patterns = [r'=[\'\"]?((http|//)[^\'\" >]+)', r'>((http)[^ <]+)']
-        match = itertools.chain.from_iterable([re.findall(pattern, self.response_text) for pattern in patterns])
+        match = itertools.chain.from_iterable([re.findall(pattern, html.unescape(self.response_text)) for pattern in patterns])
         [parsed_links.add(x[0]) for x in match]
         self.separate_links_by_type(parsed_links)
         self.normalize_inbound_links()
         return None
 
     def get_links_from_json(self):
-        for key, item in json.loads(self.response_text).items():
-            self.child_parser(item)
+        json_loaded = json.loads(self.response_text)
+        if isinstance(json_loaded, dict):
+            for key, item in json_loaded.items():
+                self.child_parser(item)
+        elif isinstance(json_loaded, list):
+            for list_item in json_loaded:
+                for key, item in list_item.items():
+                    self.child_parser(item)
+        else:
+            print('weird json content', type(json_loaded), self.response_url)
         return None
 
     def child_parser(self, child):
@@ -189,3 +201,5 @@ class HtmlHandler:
             for _, value in child.items():
                 self.child_parser(value)
         return None
+
+

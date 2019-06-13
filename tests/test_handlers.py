@@ -192,7 +192,7 @@ def test_css3_file_parsing_dots():
 
     assert len(css_class.inbound) == 5
 
-@pytest.mark.foo
+# @pytest.mark.foo
 def test_css3_file_parsing_shitty_stuff():
     response = asyncio.run(worker('http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/css/powerball.css'))
     css_class = HtmlHandler(*response)
@@ -200,6 +200,25 @@ def test_css3_file_parsing_shitty_stuff():
 
     assert len(css_class.inbound) == 4
 
+@pytest.mark.foo
+def test_xml_file_parsing_cyrillic_url():
+    response = asyncio.run(worker('http://xn--90abjzldcl.xn--p1ai/wp-json/oembed/1.0/embed?url=http%3A%2F%2Fxn--90abjzldcl.xn--p1ai%2F&format=xml'))
+    xml_handler = HtmlHandler(*response)
+    xml_handler.get_links_from_xml()
+
+    assert len(xml_handler.inbound) == 4
+
+# @pytest.mark.foo
+def test_json_file_parsing_empty_json():
+    response = asyncio.run(worker('http://xn--90abjzldcl.xn--p1ai/wp-json/wp/v2/users'))
+    json_class = HtmlHandler(*response)
+    json_class.get_links_from_json()
+    assert json_class.inbound == {'http://xn--90abjzldcl.xn--p1ai/wp-json/wp/v2/users',
+                                  'http://xn--90abjzldcl.xn--p1ai/author/webest',
+                                  'http://xn--90abjzldcl.xn--p1ai/wp-json/wp/v2/users/1'}
+    assert json_class.outbound == {'http://0.gravatar.com/avatar/c71e666fdcdfd59a7c08f64b92535443?s=24&d=mm&r=g',
+                                   'http://0.gravatar.com/avatar/c71e666fdcdfd59a7c08f64b92535443?s=48&d=mm&r=g',
+                                   'http://0.gravatar.com/avatar/c71e666fdcdfd59a7c08f64b92535443?s=96&d=mm&r=g'}
 
 
 @pytest.mark.parametrize('url', [
