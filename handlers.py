@@ -132,7 +132,7 @@ class HtmlHandler:
         except OSError:
             print('OSError')
         return project_directory + path + file_name
-
+#todo split method into couple of methods
     def convert_url_to_static(self, file_type: str) -> [str, str]:
         path = self.response_url.raw_path
         types = {'text/html': ('index.html', '.html'),
