@@ -9,7 +9,6 @@ USELESS_APPLICATIONS_TYPES = """application/epub+zip
 application/java-archive
 application/ld+json
 application/msword
-application/octet-stream
 application/ogg
 application/pdf
 application/rtf
@@ -17,7 +16,6 @@ application/vnd.amazon.ebook
 application/vnd.apple.installer+xml
 application/vnd.mozilla.xul+xml
 application/vnd.ms-excel
-application/vnd.ms-fontobject
 application/vnd.ms-powerpoint
 application/vnd.oasis.opendocument.presentation
 application/vnd.oasis.opendocument.spreadsheet

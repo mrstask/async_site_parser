@@ -34,8 +34,8 @@ async def get_inbound_links_and_save_file(response, response_text, response_url,
         getattr(type_object, type_methods[content_type])(type_object.response_text)
     else:
         getattr(type_object, type_methods[content_type])()
-    print('links')
-    pprint(type_object.inbound.difference(queued_urls))
+    # print('links')
+    # pprint(type_object.inbound.difference(queued_urls))
     await add_links_and_save_file(type_object, response)
 
 
@@ -76,10 +76,10 @@ async def worker(queue):
     async with aiohttp.ClientSession(auth=auth) as session:
         while queue.qsize() > 0:
             url = await queue.get()  # из очереди
-            print(url)
             try:
                 async with session.get(url) as response:
                     if response.status == 200:
+                        print(response.url, response.content_type)
                         parsed_urls.add(url)
                         queued_urls.add(url)
                         await content_router(response)
@@ -87,12 +87,13 @@ async def worker(queue):
                         print('bad_url ', response.url, ' ', response.status)
                         bad_urls.add(url)
             except Exception as e:
-                print(type(e), e)
+                print('session get exception for url', url, type(e), e)
 
 
 if __name__ == '__main__':
     asyncio.run(main())
-    print(len(parsed_urls))
+    print('parsed urls', len(parsed_urls))
     pprint(parsed_urls)
     print('*'*100)
+    print('bad urls')
     pprint(bad_urls)
