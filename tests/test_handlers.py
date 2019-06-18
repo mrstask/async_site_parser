@@ -174,7 +174,8 @@ def test_css_file_parsing():
 
 
 @pytest.mark.parametrize('url, inbound, outbound', [
-    ('http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/css/my.css', 12, 2)
+    ('http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/css/my.css', 12, 2),
+    ('http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/css/result.css', 2, 0)
 ])
 def test_css2_file_parsing(url, inbound, outbound):
     response = asyncio.run(worker(url))
@@ -192,7 +193,7 @@ def test_css3_file_parsing_dots():
 
     assert len(css_class.inbound) == 5
 
-# @pytest.mark.foo
+@pytest.mark.foo
 def test_css3_file_parsing_shitty_stuff():
     response = asyncio.run(worker('http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/css/powerball.css'))
     css_class = HtmlHandler(*response)
@@ -208,7 +209,7 @@ def test_xml_file_parsing_cyrillic_url():
 
     assert len(xml_handler.inbound) == 4
 
-# @pytest.mark.foo
+
 def test_json_file_parsing_empty_json():
     response = asyncio.run(worker('http://xn--90abjzldcl.xn--p1ai/wp-json/wp/v2/users'))
     json_class = HtmlHandler(*response)
@@ -220,7 +221,7 @@ def test_json_file_parsing_empty_json():
                                    'http://0.gravatar.com/avatar/c71e666fdcdfd59a7c08f64b92535443?s=48&d=mm&r=g',
                                    'http://0.gravatar.com/avatar/c71e666fdcdfd59a7c08f64b92535443?s=96&d=mm&r=g'}
 
-
+@pytest.mark.foo
 @pytest.mark.parametrize('url', [
     'http://xn--90abjzldcl.xn--p1ai/',
     'http://xn--90abjzldcl.xn--p1ai/wp-content/themes/bwstheme/css/powerball.css',
@@ -267,6 +268,7 @@ def test_json_parser(url, number):
     assert json_class.outbound == JSON_OUTBOUND[number]
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize('url, file_type, path', [
     ('http://127.0.0.1:5000/', 'text/html', ['', 'index.html']),
     ('http://127.0.0.1:5000/index.html', 'text/html', ['', 'index.html']),
@@ -287,7 +289,7 @@ def test_check_correct_path(url, file_type, path):
 
     assert [directory, file_name] == path
 
-
+@pytest.mark.foo
 def test_check_correct_path_for_css_file_with_parameters():
     url = 'http://xn--90abjzldcl.xn--p1ai/wp-content/plugins/waiting/css/style.css?v=0.4.7'
     response_url, response_type = asyncio.run(another_worker(url))
@@ -296,7 +298,13 @@ def test_check_correct_path_for_css_file_with_parameters():
     assert [directory, file_name] == ['/wp-content/plugins/waiting/css', 'style.css']
 
 
-
+@pytest.mark.foo
+def test_csv_file_writing():
+    file = [('old_url', 'new_url'),
+            ('old_url2', 'new_url2'),
+            ('old_url3', 'new_url3'),
+            ]
+    HtmlHandler.write_htaccess_file(file)
 
 
 

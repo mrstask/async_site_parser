@@ -24,7 +24,7 @@ async def add_links_and_save_file(obj, response):
         if url not in parsed_urls and url not in queued_urls:
             queued_urls.add(url)
             await qu.put(url)
-    await HtmlHandler.write_binary(response)l
+    await HtmlHandler.write_binary(response)
 
 
 async def get_inbound_links_and_save_file(response, response_text, response_url, content_type):

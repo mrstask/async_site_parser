@@ -5,6 +5,7 @@ import aiofiles
 import json
 import itertools
 import html
+import csv
 from urllib.parse import quote, urljoin
 from lxml import html as lhtml
 from settings import start_url as domain, project_directory
@@ -51,10 +52,11 @@ class HtmlHandler:
         except Exception as e:
             print('get_scripts', type(e))
 
-    def get_links_from_css(self, styles: str):
+    def get_links_from_css_tinycss(self, styles: str):
         parsed_links = []
         for item in tinycss2.parse_stylesheet(styles):
             if item.type in ['qualified-rule', 'at-rule']:
+                pprint(item.content)
                 css_items = [] if not item.prelude else item.prelude + [] if not item.content else item.content
                 for css_item in css_items:
                     if css_item.type == 'url' and '<' not in css_item.value:
@@ -63,6 +65,18 @@ class HtmlHandler:
         self.separate_links_by_type(parsed_links)
         self.normalize_inbound_links()
         return None
+
+    def get_links_from_css(self, styles: str):
+        try:
+            parsed_links = re.findall(r'url\(([^)]+)\)', styles)
+            parsed_links = [url.strip('\'') for url in parsed_links]
+            parsed_links = [url for url in parsed_links if '<' not in url]
+            pprint(parsed_links)
+            self.separate_links_by_type(parsed_links)
+            self.normalize_inbound_links()
+            return None
+        except Exception as e:
+            print('get_scripts', type(e))
 
     def get_links_from_a_and_link(self):
         try:
@@ -132,7 +146,7 @@ class HtmlHandler:
         except OSError:
             print('OSError')
         return project_directory + path + file_name
-#todo split method into couple of methods
+
     def convert_url_to_static(self, file_type: str) -> [str, str]:
         path = self.response_url.raw_path
         types = {'text/html': ('index.html', '.html'),
@@ -141,26 +155,23 @@ class HtmlHandler:
                  'application/rss+xml': ('index.xml', '.xml'),
                  'text/css': ('index.css', '.css'),
                  }
-        # checking if url has parameters,
+        # checking if url has parameters, and not css because css parameters are useless
         if self.response_url.query_string and file_type != 'text/css':
-            file_name = self.response_url.raw_name.replace('.', '_') + '?' + self.response_url.query_string + \
-                        types[file_type][1]
-            file_name = quote(file_name, safe='')
-            print('changed path from ', self.response_url, ' to ', self.response_url.scheme +
-                  '://' + self.response_url.raw_host + path + file_name)
-            self.file_for_htaccess.append(self.response_url.scheme + '://' + self.response_url.raw_host + path +
-                                          file_name)
+            file_name = quote(self.response_url.raw_name.replace('.', '_') + '?' +
+                              self.response_url.query_string + types[file_type][1], safe='')
+            print('changed path from ', self.response_url, ' to ', self.response_url.scheme + '://' + self.response_url.raw_host + path + file_name)
+            self.file_for_htaccess.append((self.response_url, self.response_url.scheme + '://' + self.response_url.raw_host + path +
+                                          file_name))
         else:
             # if url has no slash ending and has no extension
-            if not path.endswith('/') and '.' not in path:
-                path = path + '/'
+            path = path + '/' if not path.endswith('/') and '.' not in path else path
             # handling file_name
             if file_type and '.' not in self.response_url.name:
                 file_name = types[file_type][0]
-                print('changed path from ', self.response_url, ' to ', self.response_url.scheme +
-                      '://' + self.response_url.raw_host + path + file_name)
-                self.file_for_htaccess.append(self.response_url.scheme + '://' + self.response_url.raw_host + path +
-                                              file_name)
+                # print('changed path from ', self.response_url, ' to ', self.response_url.scheme +
+                #       '://' + self.response_url.raw_host + path + file_name)
+                # self.file_for_htaccess.append(self.response_url.scheme + '://' + self.response_url.raw_host + path +
+                #                               file_name)
             else:
                 file_name = path.split('/')[-1]
             # handling directory
@@ -201,5 +212,11 @@ class HtmlHandler:
             for _, value in child.items():
                 self.child_parser(value)
         return None
+
+    @staticmethod
+    def write_htaccess_file(file_for_htaccess):
+        with open('csv_for_htaccess.csv', 'a' if os.path.exists('csv_for_htaccess.csv') else 'w') as file:
+            writer = csv.writer(file)
+            writer.writerows(file_for_htaccess)
 
 
