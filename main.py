@@ -65,7 +65,7 @@ async def content_router(response):
 async def main():
     await qu.put(start_url)
     tasks = []
-    for _ in range(1):
+    for _ in range(10):
         task = asyncio.Task(worker(qu))
         tasks.append(task)
 

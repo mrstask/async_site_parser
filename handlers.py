@@ -7,7 +7,7 @@ import html
 import csv
 from urllib.parse import quote, urljoin
 from lxml import html as lhtml
-from settings import start_url as project_directory
+from settings import project_directory
 # from pprint import pprint
 
 SAVE_TYPES = {'text/html': ('index.html', '.html'),
@@ -182,7 +182,7 @@ class HtmlHandler:
         print('changed path from ', response_url, ' to ', response_url.scheme + '://'
               + response_url.raw_host + path + file_name)
         HtmlHandler.write_htaccess_file((str(response_url), response_url.scheme + '://'
-                                         + response_url.raw_host + path + file_name))
+                                         + response_url.raw_host + path + file_name), response_url.raw_host)
         return file_name
 
     def get_scripts_from_html(self) -> str:
@@ -207,8 +207,8 @@ class HtmlHandler:
         return None
 
     @staticmethod
-    def write_htaccess_file(file_for_htaccess):
-        path = project_directory + 'csv_for_htaccess.csv'
+    def write_htaccess_file(file_for_htaccess, site_name):
+        path = project_directory + site_name + '/csv_for_htaccess.csv'
         open_type = 'a' if os.path.exists(path) else 'w'
         with open(path, open_type) as file:
             writer = csv.writer(file)

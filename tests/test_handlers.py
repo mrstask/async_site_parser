@@ -100,7 +100,7 @@ def test_json_file_parsing_empty_json():
     assert len(json_class.inbound) == 3
     assert len(json_class.outbound) == 3
 
-
+@pytest.mark.foo
 @pytest.mark.parametrize('url', [
     'http://lottery-lucky.ru/fonts/fontawesome-webfont.woff?v=4.5.0',
     'http://lottery-lucky.ru/fonts/fontawesome-webfont.svg?v=4.5.0',
@@ -121,6 +121,7 @@ def test_file_write(url):
                 return await HtmlHandler.write_binary(response)
 
     path = asyncio.run(request_for_file_saving(url))
+    print(path)
     assert os.path.isfile(path)
 
 
