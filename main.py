@@ -34,8 +34,8 @@ async def get_inbound_links_and_save_file(response, response_text, response_url,
         getattr(type_object, type_methods[content_type])(type_object.response_text)
     else:
         getattr(type_object, type_methods[content_type])()
-    # print('links')
-    # pprint(type_object.inbound.difference(queued_urls))
+    print('links')
+    pprint(type_object.inbound.difference(queued_urls))
     await add_links_and_save_file(type_object, response)
 
 
@@ -77,7 +77,7 @@ async def worker(queue):
         while queue.qsize() > 0:
             url = await queue.get()  # из очереди
             try:
-                async with session.get(url) as response:
+                async with session.get(url, allow_redirects=False) as response:
                     if response.status == 200:
                         print(response.url, response.content_type)
                         parsed_urls.add(url)

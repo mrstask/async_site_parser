@@ -157,7 +157,8 @@ class HtmlHandler:
 
     @staticmethod
     def convert_url_to_static(response_url, file_type: str) -> [str, str]:
-        if response_url.query_string and file_type not in ['text/css', 'font/woff', 'image/svg+xml', 'image/png']:
+        if response_url.query_string and file_type not in ['text/css', 'font/woff', 'image/svg+xml', 'image/png',
+                                                           'image/jpeg', 'image/gif']:
             file_name = HtmlHandler.convert_url_with_question(response_url, file_type)
         else:
             file_name = HtmlHandler.convert_url_with_no_slash_no_ext(response_url, file_type)
