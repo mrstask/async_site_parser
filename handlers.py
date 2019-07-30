@@ -181,8 +181,8 @@ class HtmlHandler:
                           response_url.query_string + SAVE_TYPES[file_type][1], safe='')
         print('changed path from ', response_url, ' to ', response_url.scheme + '://'
               + response_url.raw_host + path + file_name)
-        HtmlHandler.write_htaccess_file((str(response_url), response_url.scheme + '://'
-                                         + response_url.raw_host + path + file_name), response_url.raw_host)
+        # HtmlHandler.write_htaccess_file((str(response_url), response_url.scheme + '://'
+        #                                  + response_url.raw_host + path + file_name), response_url.raw_host)
         return file_name
 
     def get_scripts_from_html(self) -> str:

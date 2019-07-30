@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 from pprint import pprint
 from handlers import HtmlHandler
+import time
 
 from settings import auth_login, auth_password, start_url, TO_SAVE_TYPES, USELESS_TYPES
 
@@ -65,7 +66,7 @@ async def content_router(response):
 async def main():
     await qu.put(start_url)
     tasks = []
-    for _ in range(10):
+    for _ in range(1):
         task = asyncio.Task(worker(qu))
         tasks.append(task)
 
@@ -91,9 +92,11 @@ async def worker(queue):
 
 
 if __name__ == '__main__':
+    start_time = time.time()
     asyncio.run(main())
     print('parsed urls', len(parsed_urls))
     pprint(parsed_urls)
     print('*'*100)
     print('bad urls')
     pprint(bad_urls)
+    print("--- %s seconds ---" % (time.time() - start_time))
