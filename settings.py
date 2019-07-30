@@ -1,7 +1,7 @@
 import os
 auth_login = 'ksnsuomi'
 auth_password = 'ssksnnnmi'
-start_url = 'http://super-lottery.ru'  # url without ending slash
+start_url = 'http://xn--90abjzldcl.xn--p1ai'  # url without ending slash
 project_directory = os.getcwd() + '/'
 
 
