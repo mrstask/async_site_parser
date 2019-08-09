@@ -85,6 +85,14 @@ def test_css3_file_parsing_shitty_stuff():
     assert len(css_class.inbound) == 10
 
 
+def test_css3_file_parsing_quotes():
+    response = asyncio.run(worker('https://euromillions-lottery.ru/blog/ispanskaja-lotereja-el-gordo/embed/'))
+    css_class = HtmlHandler(*response)
+    css_class.get_links_from_css(css_class.response_text)
+
+    assert len(css_class.inbound) == 0
+
+
 def test_xml_file_parsing_cyrillic_url():
     response = asyncio.run(worker('http://xn--90abjzldcl.xn--p1ai/wp-json/oembed/1.0/embed?url=http%3A%2F%2Fxn--90abjzldcl.xn--p1ai%2F&format=xml'))
     xml_handler = HtmlHandler(*response)
@@ -100,7 +108,7 @@ def test_json_file_parsing_empty_json():
     assert len(json_class.inbound) == 3
     assert len(json_class.outbound) == 3
 
-@pytest.mark.foo
+
 @pytest.mark.parametrize('url', [
     'http://lottery-lucky.ru/fonts/fontawesome-webfont.woff?v=4.5.0',
     'http://lottery-lucky.ru/fonts/fontawesome-webfont.svg?v=4.5.0',
@@ -126,7 +134,7 @@ def test_file_write(url):
 
 
 @pytest.mark.parametrize('url, inbound_count, outbound_count', [
-    ('http://xn--90abjzldcl.xn--p1ai/feed', 29, 8),
+    ('http://xn--90abjzldcl.xn--p1ai/feed', 37, 8),
     ('http://xn--90abjzldcl.xn--p1ai/wp-includes/wlwmanifest.xml', 0, 1)
 ])
 def test_xml_parser(url, inbound_count, outbound_count):
@@ -176,14 +184,16 @@ def test_check_correct_path(url, file_type, path):
 def test_check_correct_path_for_css_file_with_parameters():
     url = 'http://xn--90abjzldcl.xn--p1ai/wp-content/plugins/waiting/css/style.css?v=0.4.7'
     response_url, response_type = asyncio.run(another_worker(url))
-    directory, file_name = HtmlHandler.convert_url_to_static(response_url, response_type)
+    new_url, file_path = HtmlHandler.convert_url_to_static(response_url, response_type)
 
-    assert [directory, file_name] == ['/wp-content/plugins/waiting/css', 'style.css']
+    assert [str(new_url), file_path] == [url, '/wp-content/plugins/waiting/css/style.css']
 
 
 def test_csv_file_writing():
-    file = ('old_url', 'new_url')
-    HtmlHandler.write_htaccess_file(file)
+    file = ('old_url', 'new_url', 'some_site')
+    HtmlHandler.write_htaccess_file(*file)
+    assert os.path.isfile(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 
 

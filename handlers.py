@@ -4,11 +4,16 @@ import aiofiles
 import json
 import itertools
 import html
+import asyncio
 import csv
 from urllib.parse import quote, urljoin
 from lxml import html as lhtml
-from settings import project_directory
+from settings import project_directory, TYPE_METHODS, TO_SAVE_TYPES, USELESS_TYPES
+from logger import my_logger
 # from pprint import pprint
+
+# todo huynya s putyami
+# save_path = project_directory + site_name + '/'
 
 SAVE_TYPES = {'text/html': ('index.html', '.html'),
               'application/json': ('index.json', '.json'),
@@ -47,19 +52,23 @@ class HtmlHandler:
             self.normalize_inbound_links()
             return None
         except Exception as e:
-            print('get_scripts', type(e))
+            my_logger.exception('%(funcName)s -  %(message)s' + str(e))
 
     def get_links_from_css(self, styles: str):
         try:
             parsed_links = re.findall(r'url\(([^)]+)\)', styles)
-            parsed_links = [url.strip('\'') for url in parsed_links]
+            temp_parsed_links = []
+            for url in parsed_links:
+                if '"' not in url:
+                    temp_parsed_links.append(url)
+            parsed_links = [url.strip('\'') for url in temp_parsed_links]
             parsed_links = [url for url in parsed_links if '<' not in url]
             # pprint(parsed_links)
             self.separate_links_by_type(parsed_links)
             self.normalize_inbound_links()
             return None
         except Exception as e:
-            print('get_scripts', type(e))
+            my_logger.exception('%(funcName)s -  %(message)s' + str(e))
 
     def get_links_from_a_and_link(self):
         try:
@@ -69,7 +78,7 @@ class HtmlHandler:
             self.normalize_inbound_links()
             return None
         except Exception as e:
-            print('get_scripts', type(e))
+            my_logger.exception('%(funcName)s -  %(message)s' + str(e))
 
     def get_links_from_img(self):
         try:
@@ -78,7 +87,7 @@ class HtmlHandler:
             self.normalize_inbound_links()
             return None
         except Exception as e:
-            print('get_image_urls', type(e))
+            my_logger.exception('%(funcName)s -  %(message)s' + str(e))
 
     def get_links_from_xml(self):
         parsed_links = set()
@@ -100,7 +109,8 @@ class HtmlHandler:
                 for key, item in list_item.items():
                     self.child_parser(item)
         else:
-            print('weird json content', type(json_loaded), self.response_url)
+            my_logger.error('%(funcName)s -  %(message)s' + 'weird json content' + type(json_loaded) +
+                          str(self.response_url))
         return None
 
     """ HELPER METHODS """
@@ -143,48 +153,50 @@ class HtmlHandler:
 
     @staticmethod
     async def write_binary(response):
-        directory, file_name = HtmlHandler.convert_url_to_static(response.url, response.content_type)
-        path = response.url.raw_host + directory + '/'
-        if not os.path.exists(project_directory + path):
-            os.makedirs(project_directory + path)
+        new_url, file_path = HtmlHandler.convert_url_to_static(response.url, response.content_type)
+        # my_logger.debug(response.url, new_url, file_path)
+        save_directory = response.url.raw_host + '/'.join(file_path.split('/')[:-1])
+        if not os.path.exists(project_directory + save_directory):
+            os.makedirs(project_directory + save_directory)
         try:
-            async with aiofiles.open(project_directory + path + file_name, mode='wb') as f:
+            async with aiofiles.open(project_directory + response.url.raw_host + file_path, mode='wb') as f:
                 await f.write(await response.read())
                 await f.close()
         except OSError:
-            print('OSError')
-        return project_directory + path + file_name
+            my_logger.exception(str(OSError))
+        return project_directory + response.url.raw_host + file_path
 
     @staticmethod
     def convert_url_to_static(response_url, file_type: str) -> [str, str]:
         if response_url.query_string and file_type not in ['text/css', 'font/woff', 'image/svg+xml', 'image/png',
                                                            'image/jpeg', 'image/gif']:
-            file_name = HtmlHandler.convert_url_with_question(response_url, file_type)
+            new_url, file_name = HtmlHandler.convert_url_with_question(response_url, file_type)
+            file_path = '/'.join(response_url.raw_path.split('/')[:-1]) + file_name
         else:
-            file_name = HtmlHandler.convert_url_with_no_slash_no_ext(response_url, file_type)
-        directory = '/'.join(response_url.raw_path.split('/')[:-1])
-        return directory, file_name
+            new_url = response_url
+            file_path = HtmlHandler.convert_url_with_no_slash_no_ext(response_url, file_type)
+        return new_url, file_path
 
     @staticmethod
     def convert_url_with_no_slash_no_ext(response_url, file_type):
         path = response_url.raw_path
         path = path + '/' if not path.endswith('/') and '.' not in path else path
         if file_type and '.' not in response_url.name:
-            file_name = SAVE_TYPES[file_type][0]
+            file_name = path + SAVE_TYPES[file_type][0]
         else:
-            file_name = path.split('/')[-1]
+            file_name = path
         return file_name
 
     @staticmethod
     def convert_url_with_question(response_url, file_type):
         path = response_url.raw_path
-        file_name = quote(response_url.raw_name.replace('.', '_') + '?' +
-                          response_url.query_string + SAVE_TYPES[file_type][1], safe='')
-        print('changed path from ', response_url, ' to ', response_url.scheme + '://'
-              + response_url.raw_host + path + file_name)
-        HtmlHandler.write_htaccess_file((str(response_url), response_url.scheme + '://'
-                                         + response_url.raw_host + path + file_name), response_url.raw_host)
-        return file_name
+        file_name = '/' + quote(response_url.raw_name.replace('.', '_') + '?' +
+                                response_url.query_string + SAVE_TYPES[file_type][1], safe='')
+        my_logger.info('changed path from ' + str(response_url) + ' to ' + response_url.scheme
+                       + '://' + response_url.raw_host + path + file_name)
+        new_url = response_url.scheme + '://' + response_url.raw_host + path[:-1] + file_name
+        HtmlHandler.write_htaccess_file(str(response_url), new_url, response_url.raw_host)
+        return new_url, file_name
 
     def get_scripts_from_html(self) -> str:
         scripts = self.parsed_response.xpath('//script/text()')
@@ -208,10 +220,64 @@ class HtmlHandler:
         return None
 
     @staticmethod
-    def write_htaccess_file(file_for_htaccess, site_name):
+    def write_htaccess_file(old_url, new_url, site_name):
         path = project_directory + site_name + '/csv_for_htaccess.csv'
         open_type = 'a' if os.path.exists(path) else 'w'
         with open(path, open_type) as file:
             writer = csv.writer(file)
-            writer.writerow(file_for_htaccess)
+            writer.writerow([old_url, new_url])
+
+
+class StreamHelpers:
+    def __init__(self):
+        self.qu = asyncio.Queue()
+        self.parsed_urls = set()
+        self.queued_urls = set()
+        self.bad_urls = set()
+
+    async def add_links_and_save_file(self, file_object, response):
+        for url in file_object.inbound:
+            if url not in self.parsed_urls and url not in self.queued_urls:
+                self.queued_urls.add(url)
+                await self.qu.put(url)
+        await HtmlHandler.write_binary(response)
+
+    async def get_inbound_links_and_save_file(self, response, response_text, response_url, content_type):
+        type_object = HtmlHandler(response_text, response_url)
+
+        if content_type in ['text/css', 'text/javascript']:
+            getattr(type_object, TYPE_METHODS[content_type])(type_object.response_text)
+        else:
+            getattr(type_object, TYPE_METHODS[content_type])()
+        my_logger.info(str(response_url) + ': ' + str(type_object.inbound.difference(self.queued_urls)))
+        await self.add_links_and_save_file(type_object, response)
+
+    @staticmethod
+    async def content_router(response, stream):
+        if response.content_type == 'text/html':
+            await stream.get_inbound_links_and_save_file(response, await response.text(), response.url,
+                                                         response.content_type)
+
+        if response.content_type == 'text/css':
+            await stream.get_inbound_links_and_save_file(response, await response.text(), response.url,
+                                                         response.content_type)
+
+        if response.content_type == 'text/javascript':
+            await stream.get_inbound_links_and_save_file(response, await response.text(), response.url,
+                                                         response.content_type)
+
+        if response.content_type == 'text/xml':
+            await stream.get_inbound_links_and_save_file(response, await response.text(), response.url,
+                                                         response.content_type)
+
+        if response.content_type == 'application/json':
+            await stream.get_inbound_links_and_save_file(response, await response.text(), response.url,
+                                                         response.content_type)
+
+        if response.content_type in TO_SAVE_TYPES:
+            await HtmlHandler.write_binary(response)
+
+        if response.content_type in USELESS_TYPES:
+            my_logger.warning(str(response.url) + '- USELESS_TYPES')
+
 

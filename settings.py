@@ -1,7 +1,6 @@
 import os
 auth_login = 'ksnsuomi'
 auth_password = 'ssksnnnmi'
-start_url = 'http://lotoflotto.com'  # url without ending slash
 project_directory = os.getcwd() + '/'
 
 
@@ -75,3 +74,10 @@ font/woff2""".splitlines()
 
 USELESS_TYPES = USELESS_APPLICATIONS_TYPES + USELESS_AUDIO_TYPES + USELESS_VIDEO_TYPES + USELESS_TEXT_TYPES
 TO_SAVE_TYPES = IMAGE_TYPES + FONT_TYPES
+
+TYPE_METHODS = {'text/html': 'html_inbound_links_parser',  # without parameters
+                'text/css': 'get_links_from_css',
+                'text/javascript': 'get_links_from_scripts',
+                'text/xml': 'get_links_from_xml',  # without parameters
+                'application/json': 'get_links_from_json'  # without parameters
+                }
